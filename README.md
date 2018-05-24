@@ -35,6 +35,8 @@
 
 # ignore
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/zeit/dockerignore.svg?token=dcf00be308333f84ca0fc1623641c967bd6b9388ef9259bd1f34583d77b0d7ed&ts=1527134351651)](https://greenkeeper.io/)
+
 `ignore` is a manager, filter and parser which implemented in pure JavaScript according to the .gitignore [spec](http://git-scm.com/docs/gitignore).
 
 Pay attention that [`minimatch`](https://www.npmjs.org/package/minimatch) does not work in the gitignore way. To filter filenames according to .gitignore file, I recommend this module.
