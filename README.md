@@ -43,7 +43,7 @@ The `.dockerignore` spec has a few subtle differences from `.gitignore`. IF you'
   - this is also modeled directly from [docker's implementation](https://github.com/docker/docker-ce/blob/7d44629ea2c739e7803acc77b84ee8dd2a8c4746/components/engine/pkg/fileutils/fileutils.go)
 
 #### What's the same as `ignore`?
-- The entire API (Infate we even reuse the same `index.d.ts` file for TypeScript definitions)
+- The entire API (In fact we even reuse the same `index.d.ts` file for TypeScript definitions)
 
 ##### Tested on
 
