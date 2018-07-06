@@ -963,7 +963,7 @@ function createUniqueTmp () {
 let dockerBuildSema = new Sema(PARALLEL_DOCKER_BUILDS, {capacity: cases.length})
 async function getNativeDockerIgnoreResults (rules, paths) {
   await dockerBuildSema.acquire()
-  const dir = createUniqueTmp()
+  const dir = await createUniqueTmp()
   const imageTag = cuid()
 
   const dockerignore = typeof rules === 'string'
