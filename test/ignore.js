@@ -1004,9 +1004,10 @@ async function getNativeDockerIgnoreResults (rules, paths) {
 	touch(dir, DockerfileName, Dockerfile)
   ])
 
-  await getRawBody(spawn('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
+  const buildErr = (await getRawBody(spawn('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
     cwd: dir
-  }).stdout)
+  }).stderr)).toString('utf8')
+  buildErr && console.error(buildErr)
 
   let runProc = spawn('docker', ['run', '--rm', imageTag], {
     cwd: dir
@@ -1014,10 +1015,9 @@ async function getNativeDockerIgnoreResults (rules, paths) {
   
   const out = (await getRawBody(runProc.stdout)).toString('utf8')
   const err = (await getRawBody(runProc.stderr)).toString('utf8')
+  err && console.error(err)
 
   dockerBuildSema.release()
-
-  console.log(out, err)
 
   await getRawBody(spawn('docker', ['rmi', imageTag], {
     cwd: dir
