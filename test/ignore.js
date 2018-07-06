@@ -869,8 +869,6 @@ real_cases.forEach(function(c) {
   // In some platform, the behavior of trailing spaces is weird
   // is not implemented as documented, so skip test
   !skip_test_test
-  // Tired to handle test cases for test cases for windows
-  && !IS_WINDOWS
   && it('vs. docker:'.padEnd(26) + description, async function (t) {
     t.plan(1)
     let result = (await getNativeDockerIgnoreResults(patterns, paths)).sort()
