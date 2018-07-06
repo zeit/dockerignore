@@ -21,6 +21,8 @@ const SHOULD_TEST_WINDOWS = !process.env.IGNORE_TEST_WIN32
 const CI = !!process.env.CI;
 const PARALLEL_DOCKER_BUILDS = 6
 
+const make_win32 = path => path.replace(/\//g, '\\')
+
 const cases = [
   [
     'special cases: invalid empty paths, just ignore',
@@ -903,11 +905,6 @@ it('.add(<Ignore>)'.padEnd(26), function(t) {
   t.deepEqual(a.filter(paths), ['.abc/d/e.js'])
   t.deepEqual(b.filter(paths), ['.abc/d/e.js', '.abc/e/e.js'])
 })
-
-function make_win32 (path) {
-  return path.replace(/\//g, '\\')
-}
-
 
 it('fixes babel class'.padEnd(26), function (t) {
   let constructor = ignore().constructor

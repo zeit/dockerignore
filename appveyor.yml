@@ -2,6 +2,7 @@ version: 1.0.{build}
 image: Visual Studio 2017
 
 environment:
+  CI: "true"
   nodejs_version: "10"
 
 install:
