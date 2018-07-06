@@ -133,7 +133,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'wildcard: treated as a shell glob suitable for consumption by fnmatch(3)',
@@ -152,7 +154,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'wildcard: with no escape',
@@ -167,7 +171,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'a negative pattern without a trailing wildcard re-includes the directory (unlike gitignore)',
