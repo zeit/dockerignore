@@ -1,4 +1,4 @@
-interface Ignore {
+export interface Ignore {
   /**
    * Adds a rule rules to the current manager.
    * @param  {string | Ignore} pattern
@@ -38,4 +38,4 @@ interface Ignore {
  */
 declare function ignore(): Ignore
 
-export = ignore 
+export = ignore
