@@ -6,7 +6,7 @@ const ignore = require('../')
 const expect = require('chai').expect
 const spawn = require('child_process').spawn
 const tmp = require('tmp').dirSync
-const mkdirp = require('mkdirp').sync
+const makeDir = require('make-dir')
 const path = require('path')
 const rm = require('rimraf').sync
 const removeEnding = require('pre-suf').removeEnding
@@ -20,6 +20,8 @@ const SHOULD_TEST_WINDOWS = !process.env.IGNORE_TEST_WIN32
   && IS_WINDOWS
 const CI = !!process.env.CI;
 const PARALLEL_DOCKER_BUILDS = 6
+
+const make_win32 = path => path.replace(/\//g, '\\')
 
 const cases = [
   [
@@ -131,7 +133,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'wildcard: treated as a shell glob suitable for consumption by fnmatch(3)',
@@ -150,7 +154,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'wildcard: with no escape',
@@ -165,7 +171,9 @@ const cases = [
       'index.html': 1,
       'Dockerfile': 0,
       '.dockerignore': 0
-    }
+    },
+    false,
+    IS_WINDOWS //  a/b/*/index.html isn't valid on windows
   ],
   [
     'a negative pattern without a trailing wildcard re-includes the directory (unlike gitignore)',
@@ -867,8 +875,6 @@ real_cases.forEach(function(c) {
   // In some platform, the behavior of trailing spaces is weird
   // is not implemented as documented, so skip test
   !skip_test_test
-  // Tired to handle test cases for test cases for windows
-  && !IS_WINDOWS
   && it('vs. docker:'.padEnd(26) + description, async function (t) {
     t.plan(1)
     let result = (await getNativeDockerIgnoreResults(patterns, paths)).sort()
@@ -903,11 +909,6 @@ it('.add(<Ignore>)'.padEnd(26), function(t) {
   t.deepEqual(a.filter(paths), ['.abc/d/e.js'])
   t.deepEqual(b.filter(paths), ['.abc/d/e.js', '.abc/e/e.js'])
 })
-
-function make_win32 (path) {
-  return path.replace(/\//g, '\\')
-}
-
 
 it('fixes babel class'.padEnd(26), function (t) {
   let constructor = ignore().constructor
@@ -957,19 +958,18 @@ let tmpRoot = tmp().name
 
 
 function createUniqueTmp () {
-  let dir = path.join(tmpRoot, String(tmpCount ++))
+  const dir = path.join(tmpRoot, String(tmpCount++))
   // Make sure the dir not exists,
   // clean up dirty things
   rm(dir)
-  mkdirp(dir)
-  return dir
+  return makeDir(dir)
 }
 
 // number of docker builds in parallel
 let dockerBuildSema = new Sema(PARALLEL_DOCKER_BUILDS, {capacity: cases.length})
 async function getNativeDockerIgnoreResults (rules, paths) {
   await dockerBuildSema.acquire()
-  const dir = createUniqueTmp()
+  const dir = await createUniqueTmp()
   const imageTag = cuid()
 
   const dockerignore = typeof rules === 'string'
@@ -984,7 +984,7 @@ async function getNativeDockerIgnoreResults (rules, paths) {
     CMD find . -type f
   `
 
-  paths.forEach(function (path, i) {
+  await Promise.all(paths.map(async (path, i) => {
     if (path === '.dockerignore') {
       return
     }
@@ -997,21 +997,25 @@ async function getNativeDockerIgnoreResults (rules, paths) {
       return
     }
 
-    touch(dir, path)
-  })
+    await touch(dir, path)
+  }))
+  await Promise.all([
+	touch(dir, '.dockerignore', dockerignore),
+	touch(dir, DockerfileName, Dockerfile)
+  ])
 
-  touch(dir, '.dockerignore', dockerignore)
-  touch(dir, DockerfileName, Dockerfile)
-
-  await getRawBody(spawn('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
+  const buildErr = (await getRawBody(spawn('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
     cwd: dir
-  }).stdout)
+  }).stderr)).toString('utf8')
+  buildErr && console.error(buildErr)
 
   let runProc = spawn('docker', ['run', '--rm', imageTag], {
     cwd: dir
   })
   
   const out = (await getRawBody(runProc.stdout)).toString('utf8')
+  const err = (await getRawBody(runProc.stderr)).toString('utf8')
+  err && console.error(err)
 
   dockerBuildSema.release()
 
@@ -1024,16 +1028,16 @@ async function getNativeDockerIgnoreResults (rules, paths) {
 }
 
 
-function touch (root, file, content) {
+async function touch (root, file, content) {
   // file = specialCharInFileOrDir(file)
 
   let dirs = file.split('/')
   let basename = dirs.pop()
 
-  let dir = dirs.join('/')
+  let dir = dirs.join(path.sep)
 
   if (dir) {
-    mkdirp(path.join(root, dir))
+    await makeDir(path.join(root, dir))
   }
 
   // abc/ -> should not create file, but only dir
