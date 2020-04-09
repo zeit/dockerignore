@@ -1,7 +1,7 @@
 <table><thead>
   <tr>
     <th>Linux</th>
-    <th>OS X</th>
+    <th>macOS</th>
     <th>Windows</th>
     <th>Coverage</th>
   </tr>
@@ -28,27 +28,52 @@
 
 # dockerignore
 
-`dockerignore` is a manager, filter and parser which is implemented in pure JavaScript according to the .dockerignore [spec](https://docs.docker.com/engine/reference/builder/#dockerignore-file) and is used in production on [now-cli](https://github.com/zeit/now-cli/)
+`dockerignore` is a file filter library fully compatible with Docker's [.dockerignore
+file](https://docs.docker.com/engine/reference/builder/#dockerignore-file), exposing the
+same API as the popular [ignore](https://github.com/kaelzhang/node-ignore) package for the
+`.gitignore` format.
 
-The `.dockerignore` spec has a few subtle differences from `.gitignore`. If you'd like a great `.gitignore` file parser, check out [ignore](https://github.com/kaelzhang/node-ignore). This package is a fork of `ignore` and follows the exact same API.
+`dockerignore` is also:
 
-#### What's different from `ignore`?
-- There are many direct differences between the `.gitignore` and `.dockerignore` specifications
-  - `*` in `.gitignore` matches everything, whereas in `.dockerignore` it only matches things in the current directory (like glob). This difference is important when whitelisting after a `*` rule
-  - `abc` in `.gitignore` matches all `abc` files and directories, however deeply nested, however `.dockerignore` specifically matches on `./abc` but does not match nested files/directories like `./somedir/abc`
-  - With `.gitignore`, when a parent directory is ignored, subdirectories cannot be re-added (using `!`) since `git` simply avoids walking through the subtree as an optimization, wheras with `.dockerignore` a subdirectory can be re-added even if a parent directory has been ignored
-  - For a complete list of differences, check out the [.gitignore spec](https://git-scm.com/docs/gitignore) and the [.dockerignore spec](https://docs.docker.com/engine/reference/builder/#dockerignore-file)
-- Under the hood, we rewrote the entire matching logic to be much simpler
-  - instead of complex Regex rule to replace patterns with regex, we scan through patterns
-  - this is also modeled directly from [docker's implementation](https://github.com/docker/docker-ce/blob/7d44629ea2c739e7803acc77b84ee8dd2a8c4746/components/engine/pkg/fileutils/fileutils.go)
+* Compatible with Linux, macOS and Windows.
+* Compact with 0 external dependencies (production install).
+* A pure Javascript port of Docker's Golang implementation of the `.dockerignore` format.
+* Well tested with hundreds of test cases including comparison against the actual behavior
+  of `docker build` on Windows and Linux.
+* Relied on in production environments by [now-cli](https://github.com/zeit/now-cli/),
+  [balena-cli](https://www.balena.io/docs/reference/balena-cli/) and other prominent
+  projects built around Docker.
 
-#### What's the same as `ignore`?
-- The entire API (In fact we even reuse the same `index.d.ts` file for TypeScript definitions)
+### What's different from `ignore`?
 
-##### Tested on
+The `.dockerignore` spec has several subtle differences from `.gitignore`:
 
-- Linux + Node: `9.0` (but we use `babel` and it *should* work on older version of Node. Accepting PRs if that isn't the case)
-- Windows + Node testing *coming soon*
+- `*` in `.gitignore` matches everything, whereas in `.dockerignore` it only matches files in the
+  current directory (like glob). This difference is important when whitelisting after a `*` rule.
+- `abc` in `.gitignore` matches all `abc` files and directories, however deeply nested, whereas
+  in `.dockerignore` it matches only at `./abc` and not in subdirectories like `./somedir/abc`.
+- With `.gitignore`, when a parent directory is ignored, subdirectories cannot be re-added (using
+  `!`) since `git` simply avoids walking through the subtree as an optimization. With
+  `.dockerignore`, a subdirectory can be re-added even if a parent directory has been ignored.
+- For a complete list of differences, check out the [.gitignore
+  spec](https://git-scm.com/docs/gitignore) and the [.dockerignore
+  spec](https://docs.docker.com/engine/reference/builder/#dockerignore-file).
+Read our [blog post](https://zeit.co/blog/dockerignore) about the differences between `dockerignore` and `ignore` and why we built this package.
+
+### What's the same as `ignore`?
+
+The entire API. `dockerignore` started as a fork of
+[ignore](https://github.com/kaelzhang/node-ignore), and even reuses the same `index.d.ts` file
+for TypeScript definitions. Under the hood, `ignore`'s matching logic was rewritten to closely
+match Docker's implementation (modeled mainly around
+[dockerignore.go](https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go)
+and [fileutils.go](https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go)).
+
+### Compatibility
+
+`dockerignore` works with Node.js version 8 and above, on Linux, macOS and Windows.
+The code is compiled with [Babel](https://babeljs.io/docs/en/), currently targeting
+[ES2015](https://en.wikipedia.org/wiki/ECMAScript).
 
 ## Install
 
@@ -61,6 +86,13 @@ yarn add @zeit/dockerignore // or npm install --save @zeit/dockerignore
 
 ```js
 const ignore = require('@zeit/dockerignore')
+const ig = ignore().add(['.abc/*', '!.abc/d/'])
+```
+
+Typescript type definitions are also included:
+
+```typescript
+import ignore from '@zeit/dockerignore'
 const ig = ignore().add(['.abc/*', '!.abc/d/'])
 ```
 
@@ -82,7 +114,7 @@ ig.ignores('.abc/a.js') // true
 paths.filter(ig.createFilter()); // ['.abc/d/e.js']
 ```
 
-### Win32 paths will be handled
+### Windows paths are supported
 
 ```js
 ig.filter(['.abc\\a.js', '.abc\\d\\e.js'])
@@ -90,15 +122,107 @@ ig.filter(['.abc\\a.js', '.abc\\d\\e.js'])
 // ['.abc\\d\\e.js']
 ```
 
-## Features
+## Backslashes _vs._ forward slashes
 
-- Exactly according to the [dockerignore spec](https://docs.docker.com/engine/reference/builder/#dockerignore-file) 
-- All test cases are verified on Circle CI by doing an actual `docker build` with the test case files and `.dockerignore` rules to ensure our tests match what happens with the real [docker](https://www.docker.com/) CLI
-- 0 external dependencies which keeps this package very small!
+`dockerignore` behaves just like the Docker CLI ("docker build") in relation to the backslash (`\`)
+and forward slash (`/`) characters:
 
-## dockerignore vs ignore
+OS           | Location                | Slash (`/`)    | Backslash (`\`)
+------------ | ----------------------- | ---------------| --------------------
+Linux, macOS | `.dockerignore`         | Path separator | Escape character
+Linux, macOS | `filter()`, `ignores()` | Path separator | Part of file name
+Windows      | `.dockerignore`         | Path separator | Path separator
+Windows      | `filter()`, `ignores()` | Path separator | Path separator
 
-Read our [blog post](https://zeit.co/blog/dockerignore) about the differences between `dockerignore` and `ignore` and why we built this package.
+This means that forward slashes can be used in the `.dockerignore` file for cross-platform
+compatibility. This is consistent with how Windows works generally: both forward slashes
+and backslashes are accepted as path separators by the Command Prompt (cmd.exe) or
+PowerShell, and by library functions like the Golang
+[filepath.Clean](https://golang.org/pkg/path/filepath/#Clean) or the Node.js
+[path.normalize](https://nodejs.org/docs/latest-v10.x/api/path.html#path_path_normalize_path).
+
+The use of the backslash as an escape character (Linux and macOS only) is not documented in the
+`.dockerignore` specification. "Reasonable" uses are probably to escape the few characters that
+have a special meaning in the `.dockerignore` file, namely `"*#!\"` (excluding the double quotes),
+as opposed to characters that have a special meaning in [regular
+expressions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions)
+generally. The "escaping" behavior for any other characters (e.g. `'\\b'`) is undefined and subject
+to implementation-specific interpretation that may change at any time.
+
+## Absolute paths
+
+Leading and trailing slashes (or backslashes on Windows) are removed from `.dockerignore` patterns,
+so `'/a'`, `'a/'` and `'/a/'` are all equivalent to `'a'` in a `.dockerignore` file, and they all
+anchor to the "leftmost" directory when matching against relative paths. For example, pattern `'a'`
+is compared with `'x'` for a given path `'x/y/z'`. This follows Docker's Golang implementation for
+compatibility. Conversely, a given absolute path will not match a non-wildcard pattern. More
+examples:
+
+```js
+  ignore().add('a').ignores('a')    // true
+  ignore().add('/a').ignores('a')   // true
+  ignore().add('/a/').ignores('a')  // true
+  ignore().add('a').ignores('/a')   // false
+  ignore().add('/a').ignores('/a')  // false
+  ignore().add('/a/').ignores('/a') // false
+```
+
+Considering pattern slash removal, the cases above may be reduced to:
+
+```js
+  ignore().add('a').ignores('a')  // true
+  ignore().add('a').ignores('/a') // false
+```
+
+The 'false' outcome for these examples may appear to mismatch the behavior of "docker build", when
+the source argument for the Dockerfile [ADD](https://docs.docker.com/engine/reference/builder/#add)
+or [COPY](https://docs.docker.com/engine/reference/builder/#copy) instructions is an absolute path
+(starting with a slash). The explanation is that docker converts absolute source paths to relative
+paths (relative to the "build context") **prior to pattern matching:**
+https://github.com/moby/moby/blob/v19.03.8/pkg/archive/archive.go#L806
+https://github.com/moby/moby/blob/v19.03.8/pkg/archive/archive.go#L825
+
+... while `dockerignore` mirrors the implementation of the pattern matcher itself. The advice is
+for your application to do the same as the docker CLI: use relative paths for pattern matching.
+This is also generally more portable across different environments: development machine, CI
+pipelines, servers or end user devices.
+
+## Comments
+
+A pattern starting with `'#'` (hash) is ignored as a comment. The hash can be prefixed with
+a slash or backslash in order to match a file name that also starts with a hash:
+
+```js
+ignore().add('#abc').ignores('#abc')   // false
+ignore().add('/#abc').ignores('#abc')  // true
+ignore().add('\\#abc').ignores('#abc') // true
+```
+
+This works because of the leading slash removal from patterns described in [Absolute
+Paths](#absolute-paths).
+
+## Exclusion patterns
+
+Patterns starting with `'!'` (exclamation mark) define matching exclusions (exceptions) as
+documented in the [.dockerignore
+specification](https://docs.docker.com/engine/reference/builder/#dockerignore-file). For
+compatibility with Docker's implementation, patterns starting with `'/!'` or `'!/'` (but not
+`'/!/'`) will also be considered exclusion patterns, in addition to slash removal described in
+[Absolute Paths](#absolute-paths). Backslash escaping as `'\\!'` may be used in order to match a
+file or directory name that starts with the exclamation mark, but this is only possible on Linux
+and macOS, not on Windows. Again, it only behaves this way for compatibility with Docker's
+implementation.
+
+## Options
+
+Matching is case-insensitive by default, following the `ignore` API
+([ignorecase](https://www.npmjs.com/package/ignore#optionsignorecase-since-400)).
+Note however that Docker performs case-sensitive matching.
+Use the `ignorecase: false` option to align with Docker's behavior:
+
+```js
+const ig = ignore({ ignorecase: false }) // for case-sensitive matching
+```
 
 ## Methods
 
@@ -111,13 +235,6 @@ Read our [blog post](https://zeit.co/blog/dockerignore) about the differences be
 Adds a rule or several rules to the current manager.
 
 Returns `this`
-
-Notice that a line starting with `'#'`(hash) is treated as a comment. Put a backslash (`'\'`) in front of the first hash for patterns that begin with a hash, if you want to ignore a file with a hash at the beginning of the filename.
-
-```js
-ignore().add('#abc').ignores('#abc')    // false
-ignore().add('\#abc').ignores('#abc')   // true
-```
 
 `pattern` could either be a line of ignore pattern or a string of multiple ignore patterns, which means we could just `ignore().add()` the content of a ignore file:
 
@@ -163,3 +280,7 @@ Contributions are always welcome and we are fully [commited to Open Source](http
   - Pranay Prakash ([@pranaygp](https://twitter.com/pranaygp)) – [▲ZEIT](https://zeit.co)
   
   Most of the initial work on this project was done by Kael Zhang ([@kaelzhang](https://github.com/kaelzhang)) and the [collaborators](https://github.com/kaelzhang/node-ignore#collaborators) on [node-ignore](https://github.com/kaelzhang/node-ignore)
+
+Special thanks to [pdcastro](https://github.com/pdcastro/) / [balena.io](https://www.balena.io/)
+for the work on Windows compatibility and for setting up Appveyor CI tests, leading to release
+1.0.0.
