@@ -4,13 +4,12 @@
 const fs = require('fs')
 const ignore = require('../')
 const expect = require('chai').expect
-const spawn = require('child_process').spawn
+const { spawn, spawnSync } = require('child_process')
 const tmp = require('tmp').dirSync
 const mkdirp = require('mkdirp').sync
 const path = require('path')
 const rm = require('rimraf').sync
 const removeEnding = require('pre-suf').removeEnding
-const getRawBody = require('raw-body')
 const it = require('ava')
 const Sema = require('async-sema')
 const cuid = require('cuid')
@@ -916,26 +915,52 @@ async function getNativeDockerIgnoreResults (rules, paths) {
   touch(dir, '.dockerignore', dockerignore)
   touch(dir, DockerfileName, Dockerfile)
 
-  await getRawBody(spawn('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
-    cwd: dir
-  }).stdout)
-
-  let runProc = spawn('docker', ['run', '--rm', imageTag], {
+  // The reason for runSync instead of runAsync is that `docker build` must
+  // finish before executing `docker run`. Note that getNativeDockerIgnoreResults
+  // is async and ava runs tests in parallel, so runSync does not prevent
+  // running multiple docker builds in parallel (and dockerBuildSema controls
+  // approximately how many to run in parallel).
+  runSync('docker', ['build', '-f', DockerfileName, '-t', imageTag, '.'], {
     cwd: dir
   })
-  
-  const out = (await getRawBody(runProc.stdout)).toString('utf8')
+
+  // runSync because `docker run` must finish before executing `docker rmi`
+  const out = runSync('docker', ['run', '--rm', imageTag], {
+    cwd: dir
+  })
 
   dockerBuildSema.release()
 
-  await getRawBody(spawn('docker', ['rmi', imageTag], {
+  // OK to be async because nothing depends on completion of `docker rmi`
+  runAsync('docker', ['rmi', imageTag], {
     cwd: dir
-  }).stdout)
+  })
 
   // Remove empty lines and the './' precceding each file
   return out.split('\n').filter(Boolean).map(x => x.slice(2));
 }
 
+// Error-handling wrapper around child_process.spawnSync()
+function runSync(command, args, options) {
+  const proc = spawnSync(command, args, { ...options, encoding: 'utf8' })
+  if (proc.error) {
+    console.error(proc.error)
+    throw proc.error
+  }
+  if (proc.stderr) {
+    console.error(proc.stderr)
+    throw new Error(proc.stderr)
+  }
+  return proc.stdout
+}
+
+// Error-handling wrapper around child_process.spawn()
+function runAsync(command, args, options) {
+  spawn(command, args, { ...options, encoding: 'utf8' })
+  .on('error', error => {
+    console.error(`Error executing: ${[command, ...args].join(' ')}\n${error}`)
+  })
+}
 
 function touch (root, file, content) {
   // file = specialCharInFileOrDir(file)
