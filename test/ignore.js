@@ -567,6 +567,52 @@ const cases = [
   ],
 
   [
+    'Leading and trailing slashes are removed from patterns',
+    [
+      '/a',
+      'b/',
+      '/c/',
+    ],
+    {
+      'a': 1,
+      'b': 1,
+      'c': 1,
+      'd': 0,
+    }
+  ],
+
+  // The "vs. docker" test would fail for the '/b' path below (hence the
+  // [SKIP-DOCKER] annotation), but only because "docker build" converts
+  // paths from absolute to relative BEFORE pattern matching:
+  // https://github.com/moby/moby/blob/v19.03.8/pkg/archive/archive.go#L806
+  // https://github.com/moby/moby/blob/v19.03.8/pkg/archive/archive.go#L825
+  [
+    'Absolute paths don\'t match non-wildcard patterns [SKIP-DOCKER]',
+    [
+      'a',
+      '/a',
+      'b',
+      '/b',
+    ],
+    {
+      'a': 1,
+      '/b': 0, // "vs. docker" would fail this one (see comment above)
+    }
+  ],
+
+  [
+    'Absolute paths like "/a" don\'t usually match any patterns, except for the wildcard',
+    [
+      '*',
+    ],
+    {
+      '/a': 1,
+      'Dockerfile': 1,
+      '.dockerignore': 1,
+    }
+  ],
+
+  [
     'A leading "**" followed by a slash means match in all directories',
     [
       '**/foo'
