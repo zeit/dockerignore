@@ -5,10 +5,12 @@ coverage
 .nyc_output
 coverage.lcov
 
-# OS or Editor folders
+# OS
 .DS_Store
 thumbs.db
 
-# Folders to ignore
+# IDE, development
 .idea
+.nvmrc
+.vscode
 node_modules
