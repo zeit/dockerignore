@@ -873,6 +873,32 @@ const cases = [
     }
   ],
   [
+    'case insensitive matching (the default behavior) [CASE-INSENSITIVE]',
+    [
+      'ab',
+      'cD/eF',
+      'GH',
+    ], {
+      'AB': 1,
+      'cd/ef': 1,
+      'gh': 1,
+    }
+  ],
+  [
+    'case sensitive matching [CASE-SENSITIVE]',
+    [
+      'ab',
+      'cD/eF',
+      'cD/AB',
+      'GH',
+    ], {
+      'AB': 0,
+      'cD/ef': 0,
+      'cD/AB': 1,
+      'gh': 0,
+    }
+  ],
+  [
     'node modules: once', [
       'node_modules/'
     ], {
@@ -920,6 +946,13 @@ real_cases.forEach(function(c) {
     return
   }
 
+  // There are 3 types of tests with regard to case sensitiveness:
+  // * [CASE-SENSITIVE] tests specifically require { ignorecase: false }
+  // * [CASE-INSENSITIVE] tests specifically require { ignorecase: true }
+  // * All other tests should pass regardless of the ignorecase value
+  const isCaseSensitiveTest = description.includes('[CASE-SENSITIVE]')
+  const isCaseInsensitiveTest = description.includes('[CASE-INSENSITIVE]')
+
   if (typeof patterns === 'string') {
     patterns = readPatterns(patterns)
   }
@@ -939,6 +972,7 @@ real_cases.forEach(function(c) {
     t.deepEqual(result.sort(), mapped.sort())
   }
 
+  !isCaseSensitiveTest &&
   it('.filter():'.padEnd(26) + description, function(t) {
     t.plan(1)
     let ig = ignore()
@@ -949,6 +983,20 @@ real_cases.forEach(function(c) {
     expect_result(t, result)
   })
 
+  !isCaseInsensitiveTest &&
+  it(`case sensitive .filter():`.padEnd(26) + description, function(t) {
+    t.plan(1)
+    let ig = ignore({
+      ignorecase: false, // the default value is true
+    })
+    let result = ig
+      .addPattern(patterns)
+      .filter(paths)
+
+    expect_result(t, result)
+  })
+
+  !isCaseSensitiveTest &&
   it('.createFilter():'.padEnd(26) + description, function(t) {
     t.plan(1)
     let result = paths.filter(
@@ -962,6 +1010,7 @@ real_cases.forEach(function(c) {
     expect_result(t, result)
   })
 
+  !isCaseSensitiveTest &&
   it('.ignores(path):'.padEnd(26) + description, function (t) {
     t.plan(Object.keys(paths_object).length)
     let ig = ignore().addPattern(patterns)
@@ -973,6 +1022,7 @@ real_cases.forEach(function(c) {
 
   // Run the test cases against real `docker build` and `docker run` output
   CI &&
+  !isCaseInsensitiveTest && // Docker/.dockerignore is case sensitive
   !description.includes('[SKIP-DOCKER]') &&
   it('vs. docker:'.padEnd(26) + description, async function (t) {
     t.plan(1)
@@ -981,6 +1031,7 @@ real_cases.forEach(function(c) {
     expect_result(t, result)
   })
 
+  !isCaseSensitiveTest &&
   SHOULD_TEST_WINDOWS && it('win32: .filter():'.padEnd(26) + description, function(t) {
     t.plan(1)
     let win_paths = paths.map(make_win32)

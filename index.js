@@ -30,7 +30,7 @@
 
 const path = require('path')
 
-module.exports = () => new IgnoreBase()
+module.exports = (options) => new IgnoreBase(options)
 
 // A simple implementation of make-array
 function make_array (subject) {
@@ -84,8 +84,12 @@ function fromSlash (file) {
 }
 
 class IgnoreBase {
-  constructor () {
+  constructor ({
+    // https://github.com/kaelzhang/node-ignore/blob/5.1.4/index.js#L372
+    ignorecase = true
+  } = {}) {
     this._rules = []
+    this._ignorecase = ignorecase
     this[KEY_IGNORE] = true
     this._initCache()
   }
@@ -333,7 +337,7 @@ class IgnoreBase {
   
     regStr += "$"
   
-    rule.regexp = new RegExp(regStr, 'i');
+    rule.regexp = new RegExp(regStr, this._ignorecase ? 'i' : '')
     return rule
   }
 }
