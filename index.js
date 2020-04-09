@@ -30,7 +30,13 @@
 
 const path = require('path')
 
-module.exports = (options) => new IgnoreBase(options)
+const factory = (options) => new IgnoreBase(options)
+
+// https://github.com/kaelzhang/node-ignore/blob/5.1.4/index.js#L538-L539
+// Fixes typescript module import
+factory.default = factory
+
+module.exports = factory
 
 function make_array (subject) {
   return Array.isArray(subject)
