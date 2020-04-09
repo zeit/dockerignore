@@ -284,6 +284,24 @@ const cases = [
   ],
 
   [
+    'wildcard with whitelisting (zeit/dockerignore/issues/11)', [
+      '*',
+      '!src',
+      '!scripts',
+      '!config',
+      '!yarn.lock',
+      '!package.json',
+      '!.env*',
+    ], {
+      '.env.sample': 0,
+      '.env/.sample': 0,
+      '.env/other': 0,
+      'Dockerfile': 1,
+      '.dockerignore': 1,
+    }
+  ],
+
+  [
     'Negate wildcard inside ignored parent directory (gitignore differs here)',
     [
       '.abc/*',
