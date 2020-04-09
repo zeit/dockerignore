@@ -177,6 +177,11 @@ class IgnoreBase {
       }
     }
 
+    // https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go#L54-L55
+    if (negative) {
+      pattern = '!' + pattern
+    }
+
     // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L30
     pattern = pattern.trim()
     if(pattern === "") {
@@ -186,6 +191,17 @@ class IgnoreBase {
     // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L34
     // convert forward slashes to backslashes on Windows
     pattern = cleanPath(pattern)
+
+    // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L36-L42
+    if (pattern[0] === '!') {
+      if (pattern.length === 1) {
+        return null
+      }
+      negative = true
+      pattern = pattern.substring(1)
+    } else {
+      negative = false
+    }
 
     return {
       origin,

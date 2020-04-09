@@ -423,6 +423,35 @@ const cases = [
     }
   ],
   [
+    'Negation is also possible with "/!" or "!/", but not "/!/" ("docker build" compatibility)',
+    [
+      'a', '/!a',
+      'b', '!/b',
+      'c', '/!/c',
+      ...(IS_WINDOWS ?
+        [
+          'd', '\\!d',
+          'e', '!\\e',
+          'f', '\\!\\f',
+        ]
+        : []
+      ),
+    ],
+    {
+      'a': 0, '!a': 0,
+      'b': 0, '!b': 0,
+      'c': 1, '!c': 0, '!/c': 0,
+      ...(IS_WINDOWS ?
+        {
+          'd': 0, '!d': 0,
+          'e': 0, '!e': 0,
+          'f': 1, '!f': 0, '!/f': 0,
+        }
+        : {}
+      ),
+    }
+  ],
+  [
     'An optional prefix "!" which negates the pattern; any matching file excluded by a previous pattern will become included again',
     [
       'abc',
