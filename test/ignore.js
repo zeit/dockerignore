@@ -612,6 +612,66 @@ const cases = [
   ],
 
   [
+    'Undo identical ignore rules',
+    [
+      'ab',
+      '!ab',
+      'cd*',
+      '!cd*',
+      'dir/*',
+      '!dir/*',
+      '*.htm',
+      '!*.htm',
+    ],
+    {
+      'ab': 0,
+      'cd': 0,
+      'cde': 0,
+      'dir/foo': 0,
+      'index.htm': 0,
+    }
+  ],
+  [
+    'Undo "*" rule with "**" rule',
+    [
+      '*.htm',
+      '!**/*.htm',
+    ],
+    {
+      'welcome.htm': 0,
+      'dir/index.htm': 0,
+    }
+  ],
+  [
+    'Undo identical rule with "**" pattern',
+    [
+      '.foo',
+      '!**/.foo',
+      '.bar',
+      '!**/.bar'
+    ],
+    {
+      '.foo/.foo': 0,
+      '.bar': 0,
+    }
+  ],
+  // TODO: review the implementation for this test case, because it fails the
+  // "vs. docker" comparison (disabled with '[SKIP-DOCKER]' in the title).
+  // This is a corner case where docker's behavior seems to mismatch their own
+  // spec. It is still useful to have this test enabled here in order to verify
+  // consistent cross-platform behavior (Windows, Linux, macOS).
+  [
+    'Undo identical rule with "**" pattern (zeit/dockerignore/issues/15) [SKIP-DOCKER]',
+    [
+      '.foo',
+      '!**/.foo',
+    ],
+    {
+      '.foo/bar': 0, // fails 'vs. docker' ("docker build" actually ignores '.foo/bar')
+    }
+  ],
+
+  [
     'add a file content',
     'test/fixtures/.aignore',
     {
