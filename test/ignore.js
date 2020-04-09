@@ -1,6 +1,5 @@
 'use strict'
 
-// For old node.js versions, we use es5
 const fs = require('fs')
 const ignore = require('../')
 const expect = require('chai').expect
@@ -19,6 +18,7 @@ const SHOULD_TEST_WINDOWS = !process.env.IGNORE_TEST_WIN32
 const CI = !!process.env.CI;
 const PARALLEL_DOCKER_BUILDS = 6
 
+// Array of [description, [patterns], [paths/expect], optional 'only' flag]
 const cases = [
   [
     'special cases: invalid empty paths, just ignore',
@@ -60,7 +60,6 @@ const cases = [
       'somedir/something.txt': 0,
       'somedir/subdir/something.txt': 0,
     },
-    // true
   ],
   [
     '.dockerignore documentation sample 2',
@@ -240,7 +239,6 @@ const cases = [
     }
   ],
 
-  // description  patterns  paths/expect  only
   [
     'ignore dot files',
     [
@@ -811,15 +809,8 @@ const cases = [
     ], {
       'abc': 1,
       'abcdef': 1,
-      'abcd/test.txt': 1,
-    }
-  ],
-  [
-    'dir ended with "*"', [
-      'abc*',
-    ], {
-      'abc': 1,
       'abc/def.txt': 1,
+      'abcd/test.txt': 1,
     }
   ],
   [
@@ -1146,10 +1137,7 @@ async function getNativeDockerIgnoreResults (rules, paths) {
       return
     }
 
-    // We do not know if a path is NOT a file,
-    // if we:
-    // `touch a`
-    // and then `touch a/b`, then boooom!
+    // skip directories
     if (containsInOthers(path, i, paths)) {
       return
     }
@@ -1214,7 +1202,6 @@ function touch (root, file, content) {
     mkdirp(path.join(root, dir))
   }
 
-  // abc/ -> should not create file, but only dir
   if (basename) {
     fs.writeFileSync(path.join(root, file), content || '')
   }

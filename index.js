@@ -32,7 +32,6 @@ const path = require('path')
 
 module.exports = (options) => new IgnoreBase(options)
 
-// A simple implementation of make-array
 function make_array (subject) {
   return Array.isArray(subject)
     ? subject
