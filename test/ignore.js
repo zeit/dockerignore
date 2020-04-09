@@ -323,67 +323,105 @@ const cases = [
       '#abc': 1,
     }
   ],
-  // TODO: Fix these tests case
-  // These test cases are currently being skipped because we need verify
-  // what dockerignore actually does and the "vs. docker" test won't work
-  // because listing files using find . on the docker image and getting
-  // the list of files trims whitespace.
-  // After manually verifying these test cases, we'll bring them back
-  // [
-  //   'Trailing spaces are ignored unless they are quoted with backslash ("\\")',
-  //   [
-  //     'abc\\  ', // only one space left -> (abc )
-  //     'bcd  ',   // no space left -> (bcd)
-  //     'cde \\ '  // two spaces -> (cde  )
-  //   ],
-  //   {
-  //     // nothing to do with backslashes
-  //     'abc\\  ': 1,
-  //     'abc  ': 0,
-  //     'abc ': 0,
-  //     'abc   ': 0,
-  //     'bcd': 1,
-  //     'bcd ': 1,
-  //     'bcd  ': 1,
-  //     'cde  ': 0,
-  //     'cde ': 0,
-  //     'cde   ': 0
-  //   },
-  //   true,
-  //   true
-  // ],
-  // [
-  //   'spaces are accepted in patterns. "\\ " doesn\'t mean anything special',
-  //   [
-  //     'abc d',
-  //     'abc\ e',
-  //     'abc\\ f',
-  //     'abc/a b c'
-  //   ],
-  //   {
-  //     'abc d': 1,
-  //     'abc\ e': 1,
-  //     'abc/a b c': 1,
-  //     'abc\\ f': 0,
-  //     'abc': 0,
-  //     'abc/abc d': 0,
-  //     'abc/abc e': 0,
-  //     'abc/abc f': 0
-  //   }
-  // ],
-  // [
-  //   'Put a backslash ("\\") in front of the first "!" for patterns that begin with a literal "!"',
-  //   [
-  //     '\\!abc',
-  //     '\\!important!.txt'
-  //   ],
-  //   {
-  //     '!abc': 1,
-  //     'abc': 0,
-  //     'b/!important!.txt': 0,
-  //     '!important!.txt': 1
-  //   }
-  // ],
+  [
+    'Trailing spaces are ignored',
+    [
+      'a ',
+      'b /',
+    ],
+    {
+      // docker trims spaces in paths, so leading/trailing spaces never match
+      'a': 1,
+      'b': 1,
+      'a ': 0,
+      'b ': 0,
+    }
+  ],
+  [
+    'Trailing spaces with backslashes never match [POSIX]',
+    [
+      'a\\ ',
+      'b\\ /',
+    ],
+    {
+      'a\\ ': 0, // this actually includes a backslash in the file name
+      'a\\': 0,
+      'a ': 0,
+      'a': 0,
+      'b\\ ': 0,
+      'b ': 0,
+      'b': 0,
+    }
+  ],
+  [
+    'Leading spaces are ignored',
+    [
+      ' a',
+      '/ b',
+    ],
+    {
+      'a': 1,
+      'b': 1,
+      ' a': 0,
+      ' b': 0,
+    }
+  ],
+  [
+    'Leading spaces with backslashes are not ignored [POSIX]',
+    [
+      '\\ a',
+      '/\\ b',
+    ],
+    {
+      'a': 0,
+      'b': 0,
+      ' a': 1,
+      ' b': 1,
+    }
+  ],
+  [
+    'spaces are accepted within patterns',
+    [
+      'abc d',
+      'abc/a b c'
+    ],
+    {
+      'abc d': 1,
+      'abc/a b c': 1,
+      'abc/a b d': 0,
+      'abc/abc d': 0,
+    }
+  ],
+  [
+    'spaces are accepted within patterns. "\\ " doesn\'t mean anything special [POSIX]',
+    [
+      'abc\\ d',
+      'abc/a\\ b\\ c'
+    ],
+    {
+      'abc d': 1,
+      'abc\\ d': 0,
+      'abc/a b c': 1,
+      'abc/a\\ b\\ c': 0,
+      'abc/a b d': 0,
+      'abc/abc d': 0,
+    }
+  ],
+  [
+    // [POSIX] because backslashes are treated as path separators on Windows and
+    // cannot be used to escape the `!` character.
+    'Put a backslash ("\\") in front of the first "!" for patterns that begin with a literal "!" [POSIX]',
+    [
+      '\\!abc',
+      '\\!important!.txt'
+    ],
+    {
+      '!abc': 1,
+      'abc': 0,
+      'b/!important!.txt': 0,
+      '!important!.txt': 1,
+    }
+  ],
   [
     'An optional prefix "!" which negates the pattern; any matching file excluded by a previous pattern will become included again',
     [
