@@ -1,0 +1,37 @@
+# Appveyor CI configuration
+# https://www.appveyor.com/docs/
+
+# These images include Node.js, nvm, yarn and Docker pre-installed
+# https://www.appveyor.com/docs/linux-images-software/
+# https://www.appveyor.com/docs/windows-images-software/
+image:
+  - Ubuntu
+  - Visual Studio 2019
+
+# The SKIP_DOCKER environment variable causes Docker tests to be skipped.
+# Test multiple Node.js versions, but only run Docker tests with one of them
+# (because it's sufficient and Docker tests take half an hour on Windows!)
+environment:
+  matrix:
+    - nodejs_version: "8"
+      SKIP_DOCKER: "1"
+    - nodejs_version: "10"
+      SKIP_DOCKER: "1"
+    - nodejs_version: "12"
+
+# lines starting with 'cmd:' run on Windows only (cmd.exe)
+# lines starting with 'sh:' run on Linux only (bash)
+install:
+  - cmd: powershell Install-Product node $env:nodejs_version
+  - sh: nvm install $nodejs_version
+  - yarn --version
+  - yarn install
+
+test_script:
+  - node --version
+  - npm --version
+  - docker --version
+  - npm test
+
+build: off
+deploy: off

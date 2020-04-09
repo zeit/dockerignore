@@ -1013,6 +1013,7 @@ real_cases.forEach(function(c) {
 
   // Run the test cases against real `docker build` and `docker run` output
   CI &&
+  !process.env.SKIP_DOCKER && // CI build matrix support
   !isCaseInsensitiveTest && // Docker/.dockerignore is case sensitive
   !description.includes('[SKIP-DOCKER]') &&
   it('vs. docker:'.padEnd(26) + description, async function (t) {
