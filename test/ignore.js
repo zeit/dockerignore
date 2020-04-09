@@ -9,7 +9,6 @@ const tmp = require('tmp').dirSync
 const mkdirp = require('mkdirp').sync
 const path = require('path')
 const rm = require('rimraf').sync
-const removeEnding = require('pre-suf').removeEnding
 const it = require('ava')
 const Sema = require('async-sema')
 const cuid = require('cuid')
@@ -105,8 +104,10 @@ const cases = [
       'README-secret.md': 0,
     }
   ],
+  // [POSIX] because the asterisk is not allowed in a file or directory name on
+  // Windows: https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
   [
-    'wildcard: special case, escaped wildcard',
+    'wildcard: special case, escaped wildcard [POSIX]',
     [
       '*.html',
       'a/b/*.html',
@@ -119,13 +120,13 @@ const cases = [
     }
   ],
   [
-    'wildcard: treated as a shell glob suitable for consumption by fnmatch(3)',
+    'wildcard: treated as a shell glob suitable for consumption by fnmatch(3) [POSIX]',
     [
       '*.html',
       '*/*.html',
       '*/*/*.html',
       '*/*/*/*.html',
-      '!b/\*/index.html'
+      '!b/\\*/index.html',
     ],
     {
       'a/b/*/index.html': 1,
@@ -143,7 +144,7 @@ const cases = [
       '!a/b/*/index.html'
     ],
     {
-      'a/b/*/index.html': 0,
+      'a/b/c/index.html': 0,
       'a/b/index.html': 1,
       'index.html': 1,
     }
@@ -592,7 +593,9 @@ const cases = [
   ],
 
   [
-    'question mark should not break all things',
+    // [POSIX] because the question mark is not allowed in a file or directory name
+    // on Windows: https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+    'question mark should not break all things [POSIX]',
     'test/fixtures/.ignore-issue-2', {
       '.project': 1,
       // remain
@@ -717,7 +720,14 @@ real_cases.forEach(function(c) {
     'Dockerfile': 0,    // default entry for 'vs. docker' test
     ...c[2], // may override '.dockerignore' and 'Dockerfile' keys above
   }
-  const skip_test_test = !CI || c[4]
+
+  // [POSIX] tests may use the backslash as a pattern escape character, and
+  // may use certain reserved characters in file names. On Windows, both the
+  // backslash and the forward slash are treated as path separators, and the
+  // characters [<>:/\\|?*] cannot be used in file names.
+  if (IS_WINDOWS && description.includes('[POSIX]')) {
+    return
+  }
 
   if (typeof patterns === 'string') {
     patterns = readPatterns(patterns)
@@ -734,11 +744,8 @@ real_cases.forEach(function(c) {
   .sort()
 
   function expect_result(t, result, mapper) {
-    if (mapper) {
-      expected = expected.map(mapper)
-    }
-
-    t.deepEqual(result.sort(), expected.sort())
+    const mapped = mapper ? expected.map(mapper) : expected
+    t.deepEqual(result.sort(), mapped.sort())
   }
 
   it('.filter():'.padEnd(26) + description, function(t) {
@@ -773,15 +780,10 @@ real_cases.forEach(function(c) {
     })
   })
 
-
-  // TODO: Is this still applicable with dockerignore
-  // Perhaps we should update the test and remov this flag
-  // In some platform, the behavior of trailing spaces is weird
-  // is not implemented as documented, so skip test
-  !skip_test_test
-  // Tired to handle test cases for test cases for windows
-  && !IS_WINDOWS
-  && it('vs. docker:'.padEnd(26) + description, async function (t) {
+  // Run the test cases against real `docker build` and `docker run` output
+  CI &&
+  !description.includes('[SKIP-DOCKER]') &&
+  it('vs. docker:'.padEnd(26) + description, async function (t) {
     t.plan(1)
     let result = (await getNativeDockerIgnoreResults(patterns, paths)).sort()
 
@@ -895,7 +897,8 @@ async function getNativeDockerIgnoreResults (rules, paths) {
     WORKDIR /build-context
     CMD find . -type f
   `
-
+  // `normalize` replaces forward slashes with backslashes on Windows
+  paths = paths.filter(p => p).map(p => path.normalize(p))
   paths.forEach(function (path, i) {
     if (path === '.dockerignore') {
       return
@@ -963,12 +966,7 @@ function runAsync(command, args, options) {
 }
 
 function touch (root, file, content) {
-  // file = specialCharInFileOrDir(file)
-
-  let dirs = file.split('/')
-  let basename = dirs.pop()
-
-  let dir = dirs.join('/')
+  const { dir, base: basename } = path.parse(file)
 
   if (dir) {
     mkdirp(path.join(root, dir))
@@ -980,16 +978,19 @@ function touch (root, file, content) {
   }
 }
 
-
 function containsInOthers (path, index, paths) {
-  path = removeEnding(path, '/')
-
   return paths.some(function (p, i) {
     if (index === i) {
       return
     }
-
-    return p === path
-    || p.indexOf(path) === 0 && p[path.length] === '/'
+    return isSubdir(p, path)
   })
+}
+
+// Check whether path2 is a subdirectory of path1
+// Return true when path1 equals path2
+// Ref: https://stackoverflow.com/a/45242825
+function isSubdir(path1, path2) {
+  const rel = path.relative(path.normalize(path1), path.normalize(path2))
+  return !(rel === '..' || rel.startsWith('..' + path.sep))
 }

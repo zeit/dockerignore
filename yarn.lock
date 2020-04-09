@@ -3020,14 +3020,6 @@ posix-character-classes@^0.1.0:
   version "0.1.1"
   resolved "https://registry.npmjs.org/posix-character-classes/-/posix-character-classes-0.1.1.tgz#01eac0fe3b5af71a2a6c02feabb8c1fef7e00eab"
 
-pre-suf@^1.0.4:
-  version "1.1.0"
-  resolved "https://registry.npmjs.org/pre-suf/-/pre-suf-1.1.0.tgz#71c98297032495e8e01681481ec08c15372d2b4e"
-  dependencies:
-    babel-cli "^6.26.0"
-    babel-preset-es2015 "^6.24.1"
-    escape-string-regexp "^1.0.5"
-
 prepend-http@^1.0.1:
   version "1.0.4"
   resolved "https://registry.npmjs.org/prepend-http/-/prepend-http-1.0.4.tgz#d4f4562b0ce3696e41ac52d0e002e57a635dc6dc"

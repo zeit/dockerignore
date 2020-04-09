@@ -1,5 +1,33 @@
 'use strict'
 
+/**
+ * This module implements the [dockerignore
+ * spec](https://docs.docker.com/engine/reference/builder/#dockerignore-file),
+ * closely following Docker's (Moby) Golang implementation:
+ * https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go
+ * https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go
+ * https://github.com/moby/moby/blob/v19.03.8/pkg/archive/archive.go#L825
+ *
+ * Something the spec is not clear about, but we discovered by reading source code
+ * and testing against the "docker build" command, is the handling of backslashes and
+ * forward slashes as path separators and escape characters in the .dockerignore file
+ * across platforms including Windows, Linux and macOS:
+ *
+ * * On Linux and macOS, only forward slashes can be used as path separators in the
+ *   .dockerignore file, and the backslash works as an escape character.
+ * * On Windows, both forward slashes and backslashes are allowed as path separators
+ *   in the .dockerignore file, and the backslash is not used as an escape character.
+ *
+ * This is consistent with how Windows works generally: both forward slashes and
+ * backslashes are accepted as path separators by the cmd.exe Command Prompt or
+ * PowerShell, and by library functions like the Golang filepath.Clean or the
+ * Node.js path.normalize.
+ *
+ * Similarly, path strings provided to the IgnoreBase.ignores() and IgnoreBase.filter()
+ * methods can use either forward slashes or backslashes as path separators on Windows,
+ * but only forward slashes are accepted as path separators on Linux and macOS.
+ */
+
 const path = require('path')
 
 module.exports = () => new IgnoreBase()
@@ -11,15 +39,48 @@ function make_array (subject) {
     : [subject]
 }
 
-const REGEX_TRAILING_SLASH = /\/$/
-const SLASH = '/'
+const REGEX_TRAILING_SLASH = /(?<=.)\/$/
+const REGEX_TRAILING_BACKSLASH = /(?<=.)\\$/
+const REGEX_TRAILING_PATH_SEP = (path.sep === '\\'
+  ? REGEX_TRAILING_BACKSLASH
+  : REGEX_TRAILING_SLASH)
+
 const KEY_IGNORE = typeof Symbol !== 'undefined'
   ? Symbol.for('dockerignore')
   : 'dockerignore'
 
 // An implementation of Go's filepath.Clean
+// https://golang.org/pkg/path/filepath/#Clean
+// https://github.com/golang/go/blob/master/src/path/filepath/path.go
+// Note that, like Go, on Windows this function converts forward slashes
+// to backslashes.
 function cleanPath (file) {
-  return path.normalize(file).replace(REGEX_TRAILING_SLASH, '')
+  return path.normalize(file).replace(REGEX_TRAILING_PATH_SEP, '')
+}
+
+// Javascript port of Golang's filepath.ToSlash
+// https://golang.org/pkg/path/filepath/#ToSlash
+// https://github.com/golang/go/blob/master/src/path/filepath/path.go
+// Convert any OS-specific path separator to '/'. Backslash is converted
+// to forward slash on Windows, but not on Linux/macOS.
+// Note that both forward slashes and backslashes are valid path separators on
+// Windows. As a result, code such as `pattern.split(path.sep).join('/')` fails
+// on Windows when forward slashes are used as path separators (issue
+// zeit/dockerignore/issues/15).
+function toSlash (file) {
+  if (path.sep === '/') {
+    return file
+  }
+  return file.replace(/\\/g, '/')
+}
+
+// Javascript port of Golang's filepath.FromSlash
+// https://github.com/golang/go/blob/master/src/path/filepath/path.go
+function fromSlash (file) {
+  if (path.sep === '/') {
+    return file
+  }
+  return file.replace(/\//g, path.sep)
 }
 
 class IgnoreBase {
@@ -75,7 +136,7 @@ class IgnoreBase {
   }
 
   _checkPattern (pattern) {
-    // https://github.com/moby/moby/blob/4f0d95fa6ee7f865597c03b9e63702cdcb0f7067/builder/dockerignore/dockerignore.go#L33-L40
+    // https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go#L34-L40
     return pattern
       && typeof pattern === 'string'
       && pattern.indexOf('#') !== 0
@@ -94,34 +155,42 @@ class IgnoreBase {
     return !this._filter(path)
   }
 
+  // https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go#L41-L53
+  // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L29-L55
   _createRule (pattern) {
-    // https://github.com/moby/moby/blob/4f0d95fa6ee7f865597c03b9e63702cdcb0f7067/builder/dockerignore/dockerignore.go#L34-L40
-    // TODO: Add link to github for dockerignore
     const origin = pattern
     let negative = false
 
     // > An optional prefix "!" which negates the pattern;
-    if (pattern.indexOf('!') === 0) {
+    // https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go#L43-L46
+    if (pattern[0] === '!') {
       negative = true
-      pattern = pattern.substr(1).trim()
+      pattern = pattern.substring(1).trim()
     }
 
+    // https://github.com/moby/moby/blob/v19.03.8/builder/dockerignore/dockerignore.go#L47-L53
     if (pattern.length > 0) {
       pattern = cleanPath(pattern)
-			pattern = pattern.split(path.sep).join(SLASH);
-			if (pattern.length > 1 && pattern[0] === SLASH) {
-				pattern = pattern.slice(1)
-			}
+      pattern = toSlash(pattern)
+      if (pattern.length > 1 && pattern[0] === '/') {
+        pattern = pattern.slice(1)
+      }
     }
 
+    // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L30
     pattern = pattern.trim()
     if(pattern === "") {
       return null
     }
 
+    // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L34
+    // convert forward slashes to backslashes on Windows
+    pattern = cleanPath(pattern)
+
     return {
       origin,
       pattern,
+      // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L54
       dirs: pattern.split(path.sep),
       negative,
     }
@@ -141,8 +210,10 @@ class IgnoreBase {
   }
 
   // @returns {Boolean} true if a file is NOT ignored
+  // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L62
   _test (file) {
-    file = file.split(SLASH).join(path.sep)
+    file = fromSlash(file)
+    // equivalent to golang filepath.Dir() https://golang.org/src/path/filepath/path.go
     const parentPath = cleanPath(path.dirname(file))
     const parentPathDirs = parentPath.split(path.sep)
     
@@ -150,7 +221,7 @@ class IgnoreBase {
 
     this._rules.forEach(rule => {
       let match = this._match(file, rule)
-  
+      // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L80
       if (!match && parentPath !== ".") {
         // Check to see if the pattern matches one of our parent dirs.
         if (rule.dirs.includes('**')) {
@@ -162,9 +233,7 @@ class IgnoreBase {
             match = match || this._match(parentPathDirs.slice(0, i).join(path.sep), rule)
           }
         } else if (rule.dirs.length <= parentPathDirs.length) {
-          // We can just test the parent path with the correct number of dirs
-          // in the rule since, for a match to happen, rule.dirs.length HAS TO BE
-          // EQUAL to the number of first in the parent path :D
+          // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L83
           match = this._match(parentPathDirs.slice(0, rule.dirs.length).join(path.sep), rule)
         }
       }
@@ -182,6 +251,7 @@ class IgnoreBase {
     return this._compile(rule).regexp.test(file)
   }
 
+  // https://github.com/moby/moby/blob/v19.03.8/pkg/fileutils/fileutils.go#L139
   _compile(rule) {
     if(rule.regexp) {
       return rule;
@@ -200,7 +270,7 @@ class IgnoreBase {
           i++;
   
           // Treat **/ as ** so eat the "/"
-          if (rule.pattern[i+1] === escapedSlash) {
+          if (rule.pattern[i+1] === path.sep) {
             i++;
           }
   
@@ -249,32 +319,5 @@ class IgnoreBase {
   
     rule.regexp = new RegExp(regStr, 'i');
     return rule
-  }
-}
-
-// A simple cache, because an ignore rule only has only one certain meaning
-const cache = {}
-
-// Windows
-// --------------------------------------------------------------
-/* istanbul ignore if  */
-if (
-  // Detect `process` so that it can run in browsers.
-  typeof process !== 'undefined'
-  && (
-    process.env && process.env.IGNORE_TEST_WIN32
-    || process.platform === 'win32'
-  )
-) {
-
-  const filter = IgnoreBase.prototype._filter
-  const make_posix = str => /^\\\\\?\\/.test(str)
-    || /[^\x00-\x80]+/.test(str)
-      ? str
-      : str.replace(/\\/g, '/')
-
-  IgnoreBase.prototype._filter = function (path) {
-    path = make_posix(path)
-    return filter.call(this, path)
   }
 }
