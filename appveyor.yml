@@ -1,0 +1,10 @@
+# Appveyor CI configuration
+# https://www.appveyor.com/docs/
+
+branches:
+  only:
+    - master
+
+build: off
+test: off
+deploy: off
